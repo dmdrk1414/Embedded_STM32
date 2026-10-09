@@ -59,6 +59,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define WKUP_INT_GPIO_Pin GPIO_PIN_0
 #define WKUP_INT_GPIO_GPIO_Port GPIOB
+#define WKUP_INT_GPIO_EXTI_IRQn EXTI0_IRQn
 
 /* USER CODE BEGIN Private defines */
 
