@@ -1,0 +1,64 @@
+# ==========================================
+# macOS
+# ==========================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ==========================================
+# STM32CubeIDE / Eclipse
+# ==========================================
+.metadata/
+.settings/
+*.launch
+.recommenders/
+
+# ==========================================
+# Build artifacts
+# ==========================================
+Debug/
+Release/
+build/
+cmake-build-*/
+
+# Object files and libraries
+*.o
+*.obj
+*.a
+*.lib
+
+# Executable and debug files
+*.elf
+*.hex
+*.bin
+*.out
+*.map
+*.list
+*.lst
+*.su
+*.cyclo
+*.gcda
+*.gcno
+
+# ==========================================
+# Temporary files
+# ==========================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ==========================================
+# Logs and traces
+# ==========================================
+*.log
+*.trace
+
+# ==========================================
+# Windows files (for cross-platform development)
+# ==========================================
+Thumbs.db
+Desktop.ini
