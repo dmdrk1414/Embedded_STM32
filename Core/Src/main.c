@@ -87,15 +87,26 @@ int main(void) {
 	/* Initialize all configured peripherals */
 	  MX_GPIO_Init();
 	  /* USER CODE BEGIN 2 */
-	  for (int i = 0; i < 6; i++)
+	  if (Lp_IsWakeFromStandby() != 0u)
 	  {
-	    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-	    HAL_Delay(150);
+	    /* Standby에서 깨어남: 깨어난 횟수만큼 깜빡임 */
+	    uint16_t n = Lp_IncWakeCount();
+	    for (uint16_t i = 0u; i < (uint16_t)(n * 2u); i++)
+	    {
+	      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+	      HAL_Delay(150);
+	    }
 	  }
-	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+	  else
+	  {
+	    /* 전원 ON: 1초 동안 길게 켜기 */
+	    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+	    HAL_Delay(1000);
+	  }
+	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);   /* LED 끄기 */
 
 	  HAL_Delay(3000);       /* J-Link 재접속용 여유 시간 */
-	  Lp_EnterStandby();     /* 여기서 잠들고, 깨어나면 main 처음부터 */
+	  Lp_EnterStandby();
 	  /* USER CODE END 2 */
 
 	/* Infinite loop */
