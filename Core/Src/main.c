@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "wkup.h"
+#include "lp.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,7 +95,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    /* 깨어있음 표시: LED 3번 깜빡임 */
+    for (int i = 0; i < 6; i++)
+    {
+      HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+      HAL_Delay(150);
+    }
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);   /* LED 끄기 (Active Low) */
 
+    Lp_EnterSleep();   /* 여기서 잠듦 → 버튼을 누르면 다음 줄부터 실행 */
+
+    if (Wkup_CheckAndClear())
+    {
+      /* 버튼으로 깨어남 */
+    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
