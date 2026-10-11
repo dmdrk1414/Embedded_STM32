@@ -21,11 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "wkup.h"   /* 웨이크업 원인 (Sleep 실습용)          */
-#include "lp.h"     /* 저전력 모드 (Sleep, Standby)        */
-#include "rst.h"    /* 리셋 원인 판별 (전원 ON, RESET 버튼 등) */
-#include "sch.h"    /* 10ms 주기 스케줄러 (TIM2 1ms 틱) */
-#include "task.h"   /* 주기 Task, 슬립 요청 확인 (5초 무입력 → Standby) */
+#include "ecum.h"   /* ECU 상태 관리: 시작 처리, 슬립 판단                  */
+#include "sch.h"    /* 10ms 주기 스케줄러 (TIM2 1µs 카운터 체크, 인터럽트 없음) */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -61,21 +58,6 @@ static void MX_TIM2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-/*
- * Led_Blink() : PC13 LED를 count번 깜빡인다.
- *
- * - 한 번 깜빡임 = 켜기 + 끄기 = 토글 2번 → 그래서 count * 2 번 반복
- * - ms : 토글 사이 간격 (작을수록 빠르게 깜빡임)
- * - PC13 LED는 Active Low (LOW = 켜짐). 토글이라 시작 상태만 맞으면 된다.
- */
-static void Led_Blink(uint16_t count, uint32_t ms)
-{
-  for (uint16_t i = 0u; i < (uint16_t)(count * 2u); i++)
-  {
-    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    HAL_Delay(ms);
-  }
-}
 /* USER CODE END 0 */
 
 /**
@@ -108,68 +90,19 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM2_Init();
+
   /* USER CODE BEGIN 2 */
+  EcuM_Init();   /* 리셋 원인 판단, 웨이크 횟수 처리, 시작 표시 */
+  Sch_Init();    /* TIM2 1µs 카운터 시작 → Sch_Run()이 10ms마다 Task_10ms() 실행 */
 
-	  /*
-	   * [시작 시 리셋 원인 판별]
-	   * Standby에서 깨어나면 리셋처럼 main 처음부터 다시 실행되므로,
-	   * 여기서 "왜 시작했는지"를 판단하고 원인별로 다르게 동작한다.
-	   * (RH850 + AUTOSAR에서 EcuM이 시작할 때 리셋/웨이크업 요인을 확인하는 부분)
-	   */
-	  switch (Rst_GetReason())
-	  {
-	    case RST_STANDBY_WAKE:
-	      /* PA0 버튼으로 Standby에서 깨어남 (로컬 웨이크업)
-	       * 백업 레지스터의 횟수를 1 올리고, 그 횟수만큼 천천히 깜빡임 */
-	      Led_Blink(Lp_IncWakeCount(), 150u);
-	      break;
-
-	    case RST_PIN:
-	      /* 보드의 RESET 버튼 (NRST 핀)
-	       * 빠르게 10번 깜빡여서 다른 원인과 구분 */
-	      Led_Blink(10u, 50u);
-	      break;
-
-	    default:
-	      /* 전원 ON: 유지 메모리를 명시적으로 초기화 */
-	      Lp_ClearWakeCount();
-	      /* 전원 ON 및 그 외 원인
-	       * LED를 1초 동안 길게 켬 (PC13 = LOW → 켜짐) */
-	      HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-	      HAL_Delay(1000);
-	      break;
-	  }
-
-	  /* LED 끄기 (PC13 = HIGH → 꺼짐, Active Low) */
-	  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-
-	  /* J-Link 재접속용 여유 시간
-	   * Standby 중에는 디버거가 접속할 수 없으므로,
-	   * 깨어 있는 3초 동안 새 코드를 다운로드할 수 있게 한다. */
-	  //HAL_Delay(3000);
-
-	  /* Standby 진입. 여기서 돌아오지 않고,
-	   * PA0 버튼을 누르면 main 처음부터 다시 시작한다.
-	   * → 그래서 아래 while (1)에는 도달하지 않는다. */
-	  //Lp_EnterStandby();
-
-	  /* TIM2 1µs 카운터 시작 (인터럽트 없음) → while (1)의 Sch_Run()이 10ms마다 Task_10ms() 실행 */
-	  Sch_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-		/* 10ms마다 Task_10ms() 실행 (LED 표시 + 슬립 판단) */
-		Sch_Run();
+		Sch_Run();             /* 10ms마다 Task_10ms() (LED 표시, 슬립 요청) */
+		EcuM_MainFunction();   /* 슬립 조건이 맞으면 Standby 진입 (돌아오지 않음) */
 
-		/* 슬립 요청이 있으면 실제 Standby 진입 (돌아오지 않음)
-		 * PA0를 누르면 main 처음부터 다시 시작한다. */
-		if (Task_IsSleepRequested() != 0u)
-		{
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);   /* LED 끄기 */
-			Lp_EnterStandby();
-		}
 	/* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

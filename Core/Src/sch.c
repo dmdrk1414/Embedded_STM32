@@ -62,6 +62,8 @@ void Sch_Run(void)
         }
 
         s_last10ms = (uint16_t)(s_last10ms + SCH_PERIOD_10MS_US);
+
+        /* Start 10ms Task */
         Task_10ms();
     }
 }
