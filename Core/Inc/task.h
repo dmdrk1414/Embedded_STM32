@@ -10,4 +10,7 @@
 /* 10ms마다 Sch_Run()이 호출한다 */
 void Task_10ms(void);
 
+/* 슬립 요청 확인: 1 = 5초 동안 입력 없음 → 잠들 시간 */
+uint8_t Task_IsSleepRequested(void);
+
 #endif /* TASK_H */

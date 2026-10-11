@@ -25,6 +25,7 @@
 #include "lp.h"     /* 저전력 모드 (Sleep, Standby)        */
 #include "rst.h"    /* 리셋 원인 판별 (전원 ON, RESET 버튼 등) */
 #include "sch.h"    /* 10ms 주기 스케줄러 (TIM2 1ms 틱) */
+#include "task.h"   /* 주기 Task, 슬립 요청 확인 (5초 무입력 → Standby) */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -152,29 +153,24 @@ int main(void)
 	   * → 그래서 아래 while (1)에는 도달하지 않는다. */
 	  //Lp_EnterStandby();
 
-
-	  /* TIM2 1ms 틱 시작 → 이후 while (1)에서 10ms마다 Task_10ms() 실행 */
+	  /* TIM2 1µs 카운터 시작 (인터럽트 없음) → while (1)의 Sch_Run()이 10ms마다 Task_10ms() 실행 */
 	  Sch_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-		/* 쉬지 않고 계속 호출. 10ms가 지났을 때만 Task_10ms()가 실행된다.
-		 * 여기에 HAL_Delay()를 넣으면 Task가 늦어지므로 넣지 않는다. */
+		/* 10ms마다 Task_10ms() 실행 (LED 표시 + 슬립 판단) */
 		Sch_Run();
 
-		/* [Sleep 실습 코드] 10ms Task 실습 동안 잠시 끔
-		for (int i = 0; i < 6; i++) {
-			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-			HAL_Delay(150);
+		/* 슬립 요청이 있으면 실제 Standby 진입 (돌아오지 않음)
+		 * PA0를 누르면 main 처음부터 다시 시작한다. */
+		if (Task_IsSleepRequested() != 0u)
+		{
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);   /* LED 끄기 */
+			Lp_EnterStandby();
 		}
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-		Lp_EnterSleep();
-		if (Wkup_CheckAndClear()) {
-		}
-		*/
-    /* USER CODE END WHILE */
+	/* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 	}
@@ -276,8 +272,8 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
@@ -288,6 +284,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SW_WKUP_GPIO_PA_0_Pin */
+  GPIO_InitStruct.Pin = SW_WKUP_GPIO_PA_0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(SW_WKUP_GPIO_PA_0_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : WKUP_INT_GPIO_Pin */
   GPIO_InitStruct.Pin = WKUP_INT_GPIO_Pin;
