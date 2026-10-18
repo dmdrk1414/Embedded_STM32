@@ -15,6 +15,24 @@
 #include "lp.h"     /* Lp_EnterStandby(), 웨이크 횟수(BKP->DR1)  */
 #include "task.h"   /* Task_IsSleepRequested()                 */
 #include "main.h"   /* LED 핀, HAL                              */
+#include "wdg.h"    /* 대기 중 워치독 Refresh */
+
+
+/*
+ * EcuM_Wait() : 워치독을 살려 두면서 기다리기 (내부 전용)
+ *   - 워치독 타임아웃(최소 약 67ms)보다 긴 HAL_Delay를 쓰면 리셋된다.
+ *   - 그래서 10ms씩 나눠 기다리며 매번 Refresh한다.
+ *   - 시작 단계 전용. 스케줄러가 돈 뒤에는 사용하지 않는다.
+ */
+static void EcuM_Wait(uint32_t ms)
+{
+    while (ms >= 10u)
+    {
+        HAL_Delay(10u);
+        Wdg_Refresh();
+        ms -= 10u;
+    }
+}
 
 /*
  * EcuM_Blink() : 시작 표시용 LED 깜빡임 (내부 전용)
@@ -26,7 +44,7 @@ static void EcuM_Blink(uint16_t count, uint32_t ms)
     for (uint16_t i = 0u; i < (uint16_t)(count * 2u); i++)
     {
         HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-        HAL_Delay(ms);
+        EcuM_Wait(ms);
     }
 }
 
@@ -60,11 +78,20 @@ void EcuM_Init(void)
             EcuM_Blink(10u, 50u);
             break;
 
+        case RST_STANDBY_WATCHDOG:
+            /* 자는 중 워치독이 깨움: 웨이크 횟수는 올리지 않고, LED 표시도 없음 */
+            break;
+
+        case RST_WATCHDOG:
+            /* 동작 중 멈춰서 워치독 리셋: 빠르게 3번 깜빡여 "고장 있었음" 표시 */
+            EcuM_Blink(3u, 100u);
+            break;
+
         default:
             /* 전원 ON 등: 유지 메모리를 명시적으로 초기화, 1초 켜기 */
             Lp_ClearWakeCount();
             HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-            HAL_Delay(1000u);
+            EcuM_Wait(1000u);
             break;
     }
 

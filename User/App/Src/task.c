@@ -13,6 +13,10 @@
  */
 #include "task.h"
 #include "main.h"
+#include "wdg.h"    /* 워치독 Refresh */
+
+/* 테스트용: Live Expressions에서 1로 바꾸면 Task가 멈춤 → 워치독 리셋 확인 */
+volatile uint8_t g_testHang = 0u;
 
 #define LED_TOGGLE_10MS      (50u)    /* 10ms × 50  = 500ms */
 #define SLEEP_TIMEOUT_10MS   (500u)   /* 10ms × 500 = 5초   */
@@ -49,6 +53,15 @@ void Task_10ms(void)
     {
         s_sleepReq = 1u;               /* 5초 동안 입력 없음 → 슬립 요청 */
     }
+
+    /* [테스트] 일부러 멈춤: Refresh를 못 해서 약 0.1초 뒤 워치독 리셋 */
+	if (g_testHang != 0u)
+    {
+        for (;;) { }
+    }
+
+    /* Task가 끝까지 정상 실행됐을 때만 "이상 없음" 신호 (10ms마다) */
+    Wdg_Refresh();
 }
 
 uint8_t Task_IsSleepRequested(void)

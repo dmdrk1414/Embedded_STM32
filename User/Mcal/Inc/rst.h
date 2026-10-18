@@ -19,6 +19,7 @@ typedef enum
 {
     RST_POWER_ON = 0,   /* 전원 ON          : RCC_CSR.PORRSTF (bit 27)              */
     RST_STANDBY_WAKE,   /* Standby 복귀      : PWR_CSR.SBF (bit 1), PA0 버튼으로 깨어남 */
+    RST_STANDBY_WATCHDOG,   /* Standby → 워치독이 깨움 (정상적인 주기 웨이크) */
     RST_PIN,            /* RESET 버튼        : RCC_CSR.PINRSTF (bit 26), NRST 핀     */
     RST_SOFTWARE,       /* 소프트웨어 리셋   : RCC_CSR.SFTRSTF (bit 28)              */
     RST_WATCHDOG,       /* 워치독 리셋       : RCC_CSR.IWDGRSTF(29), WWDGRSTF(30)    */
