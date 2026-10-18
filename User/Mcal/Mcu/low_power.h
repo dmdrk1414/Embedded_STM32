@@ -7,12 +7,13 @@
 
 #include <stdint.h>
 
-void     Lp_EnterSleep(void);
-void     Lp_EnterStandby(void);
-uint8_t  Lp_IsWakeFromStandby(void);
-uint16_t Lp_IncWakeCount(void);
-void     Lp_ClearWakeCount(void);
-void     Lp_SetSleepRequest(void);    /* 리셋 후 바로 잠들라는 표시 남기기 */
-uint8_t  Lp_TakeSleepRequest(void);   /* 표시가 있으면 1을 돌려주고 지움   */
+void     Lp_EnterSleep(void);          /* Sleep 진입, 인터럽트로 깨면 돌아옴 (현재 미사용) */
+void     Lp_EnterStandby(void);        /* Standby 진입, 돌아오지 않음 (PA0로 깨면 리셋)   */
+uint8_t  Lp_IsWakeFromStandby(void);   /* 1 = Standby 복귀 (SBF 확인 후 지움)             */
+
+/* 백업 레지스터 읽기/쓰기 (index: 1 ~ 10 → BKP->DR1 ~ DR10)
+ * 각 칸의 의미는 이 모듈이 아니라 사용하는 쪽(EcuM)이 정한다. */
+uint16_t Lp_ReadBackupReg(uint8_t index);
+void     Lp_WriteBackupReg(uint8_t index, uint16_t value);
 
 #endif

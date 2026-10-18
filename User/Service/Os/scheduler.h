@@ -10,10 +10,15 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
+#include <stdint.h>
+
 /* TIM2 시작. main에서 while (1) 들어가기 전에 한 번 호출 */
 void Sch_Init(void);
 
 /* main의 while (1) 안에서 쉬지 않고 계속 호출 */
 void Sch_Run(void);
+
+/* 스케줄러 시작 전 전용 대기: 워치독을 Refresh하면서 ms만큼 기다린다 */
+void Sch_DelayMs(uint32_t ms);
 
 #endif /* SCHEDULER_H */

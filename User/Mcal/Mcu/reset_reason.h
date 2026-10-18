@@ -15,17 +15,7 @@
 #ifndef RESET_REASON_H
 #define RESET_REASON_H
 
-/* 리셋 원인 종류 */
-typedef enum
-{
-    RST_POWER_ON = 0,   /* 전원 ON          : RCC_CSR.PORRSTF (bit 27)              */
-    RST_STANDBY_WAKE,   /* Standby 복귀      : PWR_CSR.SBF (bit 1), PA0 버튼으로 깨어남 */
-    RST_STANDBY_WATCHDOG, /* Standby 중 워치독 리셋 (잠들기 전 리셋 적용 후에는 원래 발생 안 함) */
-    RST_PIN,            /* RESET 버튼        : RCC_CSR.PINRSTF (bit 26), NRST 핀     */
-    RST_SOFTWARE,       /* 소프트웨어 리셋   : RCC_CSR.SFTRSTF (bit 28)              */
-    RST_WATCHDOG,       /* 워치독 리셋       : RCC_CSR.IWDGRSTF(29), WWDGRSTF(30)    */
-    RST_UNKNOWN         /* 위 어디에도 해당하지 않음                                  */
-} Rst_ReasonType;
+#include "GDS.h"    /* Rst_ReasonType (리셋 원인 enum) */
 
 /*
  * 리셋 원인을 판별해서 돌려준다.

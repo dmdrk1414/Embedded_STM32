@@ -4,53 +4,85 @@
  *
  * 역할
  *   - Sleep, Standby 진입과 Standby 복귀 판별
- *   - 백업 레지스터 관리: DR1 = 웨이크 횟수, DR2 = 잠들기 요청 메모
+ *   - 백업 레지스터(BKP) 읽기/쓰기 도구 제공 (각 칸의 의미는 EcuM이 정함)
  *   - RH850에서는 STBC (Standby Controller)를 다루는 부분과 비슷한 역할
  */
 #include "low_power.h"
 #include "main.h"
+#include "GDS.h"    /* LP_BKP_REG_COUNT */
 
-/* BKP->DR2에 쓰는 "잠들기 요청" 표시 값
- * 0이나 우연히 생기는 값과 구분되도록 특별한 값을 사용한다. */
-#define LP_SLEEP_REQ_MAGIC   (0x5A5Au)
+/* ========================================================================== */
+/* 내부 전용 함수 선언 (static) : 정의는 파일 맨 아래                                         */
+/* ========================================================================== */
+static void Lp_EnableBackupAccess(void);
 
-/*
- * Lp_SetSleepRequest() : 리셋 후 바로 Standby로 가라는 표시를 남긴다.
- *   - BKP->DR2는 시스템 리셋으로 지워지지 않는다. (RM0008 7.1.1, p.90)
- *   - 리셋을 넘어서 "다음 시작 때 할 일"을 전달하는 용도.
- */
-void Lp_SetSleepRequest(void)
-{
-    __HAL_RCC_BKP_CLK_ENABLE();          /* 백업 레지스터 클럭 켜기 */
-    HAL_PWR_EnableBkUpAccess();          /* 쓰기 보호 풀기 (PWR_CR.DBP = 1) */
-    BKP->DR2 = LP_SLEEP_REQ_MAGIC;
-}
+/* ========================================================================== */
+/* 외부 공개 함수 : 다른 파일에서 호출                                                      */
+/* ========================================================================== */
 
 /*
- * Lp_TakeSleepRequest() : 표시가 있으면 지우고 1, 없으면 0.
- *   - 확인하면서 지우므로 한 번만 동작한다. (계속 잠드는 일 방지)
- */
-uint8_t Lp_TakeSleepRequest(void)
-{
-    uint8_t req = 0u;
-
-    __HAL_RCC_BKP_CLK_ENABLE();
-    HAL_PWR_EnableBkUpAccess();
-
-    if (BKP->DR2 == LP_SLEEP_REQ_MAGIC)
-    {
-        BKP->DR2 = 0u;                   /* 확인했으면 지우기 */
-        req = 1u;
-    }
-    return req;
-}
-
-/*
- * Lp_EnterSleep() : Sleep 모드 진입
+ * Lp_ReadBackupReg() : 백업 레지스터 한 칸 읽기
  *
- * - CPU 코어 클럭만 멈추고, 주변장치(NVIC, EXTI, SysTick)는 계속 동작한다.
- *   (RM0008 5.3 Low-power modes, p.72)
- * - NVIC에서 허용된 인터럽트가 오면 깨어나서 "다음 줄부터" 이어서 실행한다.
+ * [설명] BKP->DR1 ~ DR10 : 리셋과 Standby에도 지워지지 않는 16비트 칸
+ *        (RM0008 6.1 p.81, 7.1.1 p.90)
+ *        이 모듈은 "어떻게 읽는지"만 알고, 각 칸의 의미는 모른다.
+ *        DR1 ~ DR10은 4바이트 간격으로 붙어 있어서 배열처럼 접근한다.
+ * [인자] index : 칸 번호 1 ~ 10 (1 → DR1)
+ * [반환] 저장된 값. index가 범위를 벗어나면 0
+ * [호출] ecu_state_manager.c (웨이크 횟수, 잠들기 메모)
+ * [예시]
+ *     uint16_t cnt = Lp_ReadBackupReg(1u);              // DR1 읽기
+ *     if (Lp_ReadBackupReg(2u) == 0x5A5Au) { ... }      // DR2 확인
+ */
+uint16_t Lp_ReadBackupReg(uint8_t index)
+{
+    uint16_t value = 0u;
+
+    if ((index >= 1u) && (index <= LP_BKP_REG_COUNT))
+    {
+        Lp_EnableBackupAccess();
+        value = (uint16_t)((&BKP->DR1)[index - 1u]);
+    }
+    return value;
+}
+
+/*
+ * Lp_WriteBackupReg() : 백업 레지스터 한 칸 쓰기
+ *
+ * [설명] 쓴 값은 리셋과 Standby에도 남는다. (전원을 완전히 끄면 지워짐)
+ *        이 모듈은 "어떻게 쓰는지"만 알고, 각 칸의 의미는 모른다.
+ * [인자] index : 칸 번호 1 ~ 10 (1 → DR1). 범위를 벗어나면 아무것도 안 함
+ *        value : 저장할 16비트 값
+ * [반환] 없음
+ * [호출] ecu_state_manager.c (웨이크 횟수, 잠들기 메모)
+ * [예시]
+ *     Lp_WriteBackupReg(2u, 0x5A5Au);   // DR2에 잠들기 메모
+ *     Lp_WriteBackupReg(1u, 0u);        // DR1 지우기
+ */
+void Lp_WriteBackupReg(uint8_t index, uint16_t value)
+{
+    if ((index >= 1u) && (index <= LP_BKP_REG_COUNT))
+    {
+        Lp_EnableBackupAccess();
+        (&BKP->DR1)[index - 1u] = value;
+    }
+}
+
+/*
+ * Lp_EnterSleep() : Sleep 모드 진입 (Sleep 실습용, 현재 미사용)
+ *
+ * [설명] CPU 코어 클럭만 멈추고, 주변장치(NVIC, EXTI, SysTick)는 계속 동작한다.
+ *        (RM0008 5.3 Low-power modes, p.72)
+ *        NVIC에서 허용된 인터럽트가 오면 깨어나서 "다음 줄부터" 이어서 실행한다.
+ * [인자] 없음
+ * [반환] 없음 (깨어나면 돌아옴)
+ * [호출] 현재 없음 (예전 Sleep 실습의 while 루프에서 사용)
+ * [예시]
+ *     Lp_EnterSleep();                  // 버튼 인터럽트까지 여기서 멈춤
+ *     if (Wkup_CheckAndClear() != 0u)   // 깨어난 이유 확인
+ *     {
+ *         ...
+ *     }
  */
 void Lp_EnterSleep(void)
 {
@@ -70,10 +102,15 @@ void Lp_EnterSleep(void)
 /*
  * Lp_EnterStandby() : Standby 모드 진입 (RH850 DeepSTOP과 비슷한 구조)
  *
- * - 1.8V 영역 전원을 끄고 SRAM, 레지스터 내용이 사라진다.
- *   백업 레지스터(BKP)만 유지된다. (RM0008 5.3.5, p.76)
- * - PA0 (WKUP 핀) 상승 에지로 깨어나며, 깨어나면 리셋처럼 처음부터 시작한다.
- * - 이 함수는 돌아오지 않는다 (return 없음).
+ * [설명] 1.8V 영역 전원을 끄고 SRAM, 레지스터 내용이 사라진다.
+ *        백업 레지스터(BKP)만 유지된다. (RM0008 5.3.5, p.76)
+ *        PA0 (WKUP 핀) 상승 에지로 깨어나며, 깨어나면 리셋처럼 처음부터 시작한다.
+ * [인자] 없음
+ * [반환] 없음 (돌아오지 않음)
+ * [호출] ecu_state_manager.c의 EcuM_EarlyInit() (IWDG 켜지기 전)
+ * [예시]
+ *     __HAL_RCC_CLEAR_RESET_FLAGS();
+ *     Lp_EnterStandby();    // 여기서 잠듦, PA0를 누르면 main()부터 다시 시작
  */
 void Lp_EnterStandby(void)
 {
@@ -97,13 +134,18 @@ void Lp_EnterStandby(void)
 }
 
 /*
- * Lp_IsWakeFromStandby() : 방금 Standby에서 깨어났는지 확인
+ * Lp_IsWakeFromStandby() : 방금 Standby에서 깨어났는지 확인 (확인 후 지움)
  *
- * - SBF (Standby Flag, PWR_CSR bit 1): Standby에 들어가면 1이 되고,
- *   전원 ON 리셋이나 CSBF로만 지워진다. (RM0008 5.4.2, p.79)
- * - 확인 후 지우지 않으면, 다음에 RESET 버튼을 눌러도
- *   계속 "Standby 복귀"로 잘못 판단하게 된다.
- * - 반환값: 1 = Standby 복귀, 0 = 그 외
+ * [설명] SBF (Standby Flag, PWR_CSR bit 1): Standby에 들어가면 1이 되고,
+ *        전원 ON 리셋이나 CSBF로만 지워진다. (RM0008 5.4.2, p.79)
+ *        확인 후 지우지 않으면, 다음에 RESET 버튼을 눌러도
+ *        계속 "Standby 복귀"로 잘못 판단하게 된다.
+ *        읽으면서 지우므로 시작할 때 한 번만 호출해야 한다.
+ * [인자] 없음
+ * [반환] 1 = Standby 복귀, 0 = 그 외
+ * [호출] reset_reason.c의 Rst_GetReason()
+ * [예시]
+ *     uint8_t wasStandby = Lp_IsWakeFromStandby();   // 결과를 저장해 두고 사용
  */
 uint8_t Lp_IsWakeFromStandby(void)
 {
@@ -115,34 +157,25 @@ uint8_t Lp_IsWakeFromStandby(void)
     return 0u;
 }
 
+/* ========================================================================== */
+/* 내부 전용 함수 (static) : 이 파일 안에서만 호출                                           */
+/* ========================================================================== */
+
 /*
- * Lp_IncWakeCount() : 웨이크업 횟수를 백업 레지스터에 1 증가
+ * Lp_EnableBackupAccess() : 백업 레지스터를 읽고 쓸 수 있게 준비 (내부 전용)
  *
- * - BKP->DR1 : 백업 데이터 레지스터 1번 (16비트 값 하나 저장)
- * - Standby에서 깨어나도 지워지지 않는다. (RM0008 6.1, p.81)
- *   → RH850 DeepSTOP의 Retention RAM과 비슷한 역할
- * - 반환값: 증가된 후의 횟수
+ * [설명] RCC_APB1ENR.BKPEN = 1 : 백업 레지스터에 클럭 공급
+ *        PWR_CR.DBP = 1        : 쓰기 보호 해제 (리셋 후에는 쓰기 금지 상태)
+ *        (RM0008 6.1, p.81)
+ * [인자] 없음
+ * [반환] 없음
+ * [호출] Lp_ReadBackupReg(), Lp_WriteBackupReg()
+ * [예시]
+ *     Lp_EnableBackupAccess();
+ *     BKP->DR1 = 0u;
  */
-uint16_t Lp_IncWakeCount(void)
+static void Lp_EnableBackupAccess(void)
 {
-    /* 백업 레지스터 주변장치에 클럭 공급 (RCC_APB1ENR.BKPEN = 1)
-     * 클럭이 없으면 레지스터를 읽고 쓸 수 없다. */
     __HAL_RCC_BKP_CLK_ENABLE();
-
-    /* 백업 영역 쓰기 보호 해제 (PWR_CR.DBP = 1)
-     * 리셋 후에는 실수로 덮어쓰지 않도록 쓰기 금지 상태다. (RM0008 6.1, p.81) */
     HAL_PWR_EnableBkUpAccess();
-
-    /* 현재 값 + 1 을 다시 저장. DR1은 16비트이므로 (uint16_t)로 맞춘다. */
-    BKP->DR1 = (uint16_t)(BKP->DR1 + 1u);
-
-    return (uint16_t)BKP->DR1;
-}
-
-/* 웨이크업 횟수 초기화: 전원 ON일 때만 호출 */
-void Lp_ClearWakeCount(void)
-{
-    __HAL_RCC_BKP_CLK_ENABLE();      /* 백업 레지스터 클럭 켜기 */
-    HAL_PWR_EnableBkUpAccess();      /* 쓰기 보호 풀기 (PWR_CR.DBP = 1) */
-    BKP->DR1 = 0u;                   /* 횟수를 0으로 */
 }

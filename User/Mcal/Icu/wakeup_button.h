@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 
+/* 1 = 버튼(PB0)으로 깨어남. 확인 후 지움 */
 uint8_t Wkup_CheckAndClear(void);
 
 #endif

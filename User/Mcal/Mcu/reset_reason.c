@@ -10,7 +10,24 @@
 volatile Rst_ReasonType g_rstReason = RST_UNKNOWN;
 
 /*
- * Rst_GetReason()
+ * Rst_GetReason() : 이번에 왜 시작했는지(리셋 원인) 판별
+ *
+ * [설명] SBF(PWR_CSR)와 RCC_CSR 리셋 플래그를 읽어 원인을 고르고,
+ *        결과를 g_rstReason에 남긴 뒤 플래그를 모두 지운다(RMVF).
+ *        플래그를 지우므로 시작할 때 "한 번만" 호출해야 한다.
+ *        (두 번째부터는 RST_UNKNOWN)
+ * [인자] 없음
+ * [반환] Rst_ReasonType (GDS.h)
+ *        RST_POWER_ON, RST_STANDBY_WAKE, RST_STANDBY_WATCHDOG,
+ *        RST_PIN, RST_SOFTWARE, RST_WATCHDOG, RST_UNKNOWN
+ * [호출] ecu_state_manager.c의 EcuM_Init()
+ * [예시]
+ *     switch (Rst_GetReason())
+ *     {
+ *         case RST_STANDBY_WAKE: ...  break;   // PA0로 깨어남
+ *         case RST_PIN:          ...  break;   // RESET 버튼
+ *         default:               ...  break;   // 전원 ON 등
+ *     }
  *
  * [확인 순서가 중요한 이유]
  *   RM0008 7.1.2 Power reset (p.91)에 따르면

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>함수 연결 지도</title>
+<style>
+:root{--bg:#fafaf8;--card:#ffffff;--soft:#f1efe8;--line:#d3d1c7;--text:#2c2c2a;--sub:#5f5e5a;--muted:#888780;
+--sel-bg:#e6f1fb;--sel-tx:#0c447c;--caller-bg:#faeeda;--caller-tx:#633806;--callee-bg:#eeedfe;--callee-tx:#3c3489;
+--app:#eaf3de;--srv:#e6f1fb;--mcal:#faeeda}
+@media (prefers-color-scheme: dark){:root{--bg:#1c1c1b;--card:#262624;--soft:#2c2c2a;--line:#444441;--text:#f1efe8;--sub:#b4b2a9;--muted:#888780;
+--sel-bg:#0c447c;--sel-tx:#e6f1fb;--caller-bg:#633806;--caller-tx:#faeeda;--callee-bg:#3c3489;--callee-tx:#eeedfe;
+--app:#27500a;--srv:#042c53;--mcal:#412402}}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+main{max-width:960px;margin:0 auto;padding:24px 16px}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}
+p.d{color:var(--sub);font-size:14px;margin:0 0 16px}
+.lg{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--sub);margin-bottom:12px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.ly{border-radius:12px;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line)}
+.lh{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.ln{font-size:14px;font-weight:600}
+.ld{font-size:12px;color:var(--sub)}
+.mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.md{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.mn{font-size:13px;font-weight:600}
+.mf{font-size:11px;color:var(--muted);font-family:ui-monospace,Menlo,monospace;margin-bottom:6px}
+.fn{display:block;width:100%;text-align:left;font-family:ui-monospace,Menlo,monospace;font-size:12px;padding:4px 6px;margin-bottom:3px;border-radius:6px;border:1px solid var(--line);background:var(--soft);color:var(--text);cursor:pointer}
+.fn.sel{background:var(--sel-bg);color:var(--sel-tx)}
+.fn.caller{background:var(--caller-bg);color:var(--caller-tx)}
+.fn.callee{background:var(--callee-bg);color:var(--callee-tx)}
+.fn.dim{opacity:.4}
+.tg{font-size:10px;margin-left:4px;color:var(--muted)}
+#info{border-radius:12px;padding:12px 14px;background:var(--soft);font-size:14px;line-height:1.7;min-height:60px}
+</style>
+</head>
+<body>
+<main>
+<h1>Embedded_STM32 함수 연결 지도</h1>
+<p class="d">함수를 클릭하면 그 함수를 부르는 쪽과 그 함수가 부르는 쪽이 강조돼요. 다시 클릭하면 해제돼요.</p>
+<div class="lg"><span><span class="sw" style="background:var(--sel-bg)"></span>선택한 함수</span><span><span class="sw" style="background:var(--caller-bg)"></span>이 함수를 부르는 쪽</span><span><span class="sw" style="background:var(--callee-bg)"></span>이 함수가 부르는 쪽</span></div>
+<div id="map"></div>
+<div id="info">함수를 클릭해 보세요.</div>
+</main>
+<script>
+const L=[
+{n:'main',d:'Core/Src/main.c · 초기화 순서와 while (1)',bg:'var(--soft)',m:[{n:'main.c',f:'Core/Src',fs:['main']}]},
+{n:'App 계층',d:'무엇을 할까',bg:'var(--app)',m:[{n:'Task',f:'App/Task/task.c',fs:['Task_10ms','Task_IsSleepRequested']},{n:'Indicator',f:'App/Indicator/indicator.c',fs:['Indicator_ShowStartup','Indicator_Blink']}]},
+{n:'Service 계층',d:'언제, 어떤 순서로',bg:'var(--srv)',m:[{n:'EcuM (상태 관리자)',f:'Service/EcuM/ecu_state_manager.c',fs:['EcuM_EarlyInit','EcuM_Init','EcuM_GoSleep','EcuM_GetStartupReason','EcuM_GetWakeCount','EcuM_IncWakeCount','EcuM_ClearWakeCount','EcuM_TakeSleepRequest']},{n:'BswM (모드 관리자)',f:'Service/BswM/mode_manager.c',fs:['BswM_MainFunction']},{n:'Os (스케줄러)',f:'Service/Os/scheduler.c',fs:['Sch_Init','Sch_Run','Sch_DelayMs']}]},
+{n:'Mcal 계층',d:'레지스터를 어떻게',bg:'var(--mcal)',m:[{n:'Mcu : 저전력',f:'Mcal/Mcu/low_power.c',fs:['Lp_ReadBackupReg','Lp_WriteBackupReg','Lp_EnterStandby','Lp_IsWakeFromStandby','Lp_EnterSleep','Lp_EnableBackupAccess']},{n:'Mcu : 리셋 원인',f:'Mcal/Mcu/reset_reason.c',fs:['Rst_GetReason']},{n:'Wdg : 워치독',f:'Mcal/Wdg/watchdog.c',fs:['Wdg_Refresh']},{n:'Icu : 버튼',f:'Mcal/Icu/wakeup_button.c',fs:['HAL_GPIO_EXTI_Callback','Wkup_CheckAndClear']}]},
+{n:'공통',d:'모든 계층이 include',bg:'var(--soft)',m:[{n:'GDS',f:'User/GDS/GDS.h',fs:['GDS.h']}]}
+];
+const F={
+main:{r:'전체 순서 관리: 초기화 → 시작 표시 → while (1)에서 스케줄러와 모드 관리자를 반복 호출',c:['EcuM_EarlyInit','EcuM_Init','EcuM_GetStartupReason','EcuM_GetWakeCount','Indicator_ShowStartup','Sch_Init','Sch_Run','BswM_MainFunction']},
+Task_10ms:{r:'10ms 할 일: 500ms마다 LED 토글, PA0가 5초 안 눌리면 슬립 요청 플래그 세움',c:[]},
+Task_IsSleepRequested:{r:'슬립 요청이 있는지 알려 줌 (1 = 잠들 시간)',c:[]},
+Indicator_ShowStartup:{r:'리셋 원인별 시작 LED 패턴 (PA0: 횟수만큼, RESET: 10번, 워치독: 3번, 전원 ON: 1초)',c:['Indicator_Blink','Sch_DelayMs']},
+Indicator_Blink:{r:'LED를 count번 깜빡임',s:1,c:['Sch_DelayMs']},
+EcuM_EarlyInit:{r:'리셋 직후 MX_IWDG_Init()보다 먼저: 잠들기 메모가 있으면 IWDG가 꺼진 채로 Standby',c:['EcuM_TakeSleepRequest','Lp_EnterStandby']},
+EcuM_Init:{r:'리셋 원인 판단 후 웨이크 횟수 처리 (PA0: +1, 전원 ON: 0으로). 결과는 저장만 하고 표시는 안 함',c:['Rst_GetReason','EcuM_IncWakeCount','EcuM_ClearWakeCount','Lp_ReadBackupReg']},
+EcuM_GoSleep:{r:'잠들기 절차 시작: DR2에 0x5A5A 메모 남기고 소프트웨어 리셋 (돌아오지 않음)',c:['Lp_WriteBackupReg']},
+EcuM_GetStartupReason:{r:'EcuM_Init()이 판단한 리셋 원인을 돌려줌',c:[]},
+EcuM_GetWakeCount:{r:'현재 웨이크 횟수를 돌려줌',c:[]},
+EcuM_IncWakeCount:{r:'DR1 웨이크 횟수 +1',s:1,c:['Lp_ReadBackupReg','Lp_WriteBackupReg']},
+EcuM_ClearWakeCount:{r:'DR1 웨이크 횟수 0으로',s:1,c:['Lp_WriteBackupReg']},
+EcuM_TakeSleepRequest:{r:'DR2가 0x5A5A면 지우고 1 (한 번만 동작)',s:1,c:['Lp_ReadBackupReg','Lp_WriteBackupReg']},
+BswM_MainFunction:{r:'슬립 조건 판단: Task가 요청했으면 EcuM_GoSleep()',c:['Task_IsSleepRequested','EcuM_GoSleep']},
+Sch_Init:{r:'TIM2 카운터 시작 (인터럽트 없음), 기준 시각 저장',c:[]},
+Sch_Run:{r:'10ms 지났으면 Task_10ms() 실행 후 워치독 Refresh. 20ms 넘게 늦으면 g_schOverrun 증가',c:['Task_10ms','Wdg_Refresh']},
+Sch_DelayMs:{r:'스케줄러 시작 전 전용 대기: 10ms씩 기다리며 워치독 Refresh',c:['Wdg_Refresh']},
+Lp_ReadBackupReg:{r:'BKP->DR1~DR10 한 칸 읽기 (의미는 모름)',c:['Lp_EnableBackupAccess']},
+Lp_WriteBackupReg:{r:'BKP->DR1~DR10 한 칸 쓰기 (의미는 모름)',c:['Lp_EnableBackupAccess']},
+Lp_EnterStandby:{r:'PA0 웨이크업 허용 후 Standby 진입 (돌아오지 않음, 깨면 리셋)',c:[]},
+Lp_IsWakeFromStandby:{r:'SBF 확인 후 지움 (1 = Standby 복귀)',c:[]},
+Lp_EnterSleep:{r:'Sleep 진입 (현재 미사용, Sleep 실습용)',u:1,c:[]},
+Lp_EnableBackupAccess:{r:'BKP 클럭 켜기 + 쓰기 보호 해제',s:1,c:[]},
+Rst_GetReason:{r:'SBF와 RCC_CSR 플래그로 리셋 원인 판별 후 플래그 지움 (한 번만 호출)',c:['Lp_IsWakeFromStandby']},
+Wdg_Refresh:{r:'IWDG_KR = 0xAAAA: 워치독 카운터 다시 채우기',c:[]},
+HAL_GPIO_EXTI_Callback:{r:'EXTI 인터럽트 콜백: 버튼 플래그 세움 (현재 미사용 경로)',u:1,c:[]},
+Wkup_CheckAndClear:{r:'버튼 웨이크업 플래그 확인 후 지움 (현재 미사용)',u:1,c:[]},
+'GDS.h':{r:'#define (Task, Indicator, Os, EcuM, Mcu 구역)와 enum Rst_ReasonType. 대부분 모듈이 include',c:[]}
+};
+const FILE={};L.forEach(l=>l.m.forEach(m=>m.fs.forEach(f=>FILE[f]=m.f)));
+const CALLERS={};Object.keys(F).forEach(k=>F[k].c.forEach(c=>{(CALLERS[c]=CALLERS[c]||[]).push(k);}));
+let sel=null;
+function esc(x){return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function nm(x){return x==='main'||x==='GDS.h'?x:x+'()';}
+function draw(){
+ const callers=sel?(CALLERS[sel]||[]):[],callees=sel?F[sel].c:[];
+ document.getElementById('map').innerHTML=L.map(l=>'<div class="ly" style="background:'+l.bg+'"><div class="lh"><span class="ln">'+esc(l.n)+'</span><span class="ld">'+esc(l.d)+'</span></div><div class="mods">'+l.m.map(m=>'<div class="md"><div class="mn">'+esc(m.n)+'</div><div class="mf">'+esc(m.f)+'</div>'+m.fs.map(f=>{let c='fn';if(sel){if(f===sel)c+=' sel';else if(callers.includes(f))c+=' caller';else if(callees.includes(f))c+=' callee';else c+=' dim';}const t=F[f].s?'static':(F[f].u?'미사용':'');return '<button class="'+c+'" data-f="'+f+'">'+esc(nm(f))+(t?'<span class="tg">'+t+'</span>':'')+'</button>';}).join('')+'</div>').join('')+'</div></div>').join('');
+ document.querySelectorAll('.fn').forEach(b=>b.addEventListener('click',()=>{sel=sel===b.dataset.f?null:b.dataset.f;draw();}));
+ const info=document.getElementById('info');
+ if(!sel){info.textContent='함수를 클릭해 보세요.';return;}
+ const fmt=a=>a.length?a.map(nm).join(', '):'없음';
+ info.innerHTML='<b>'+esc(nm(sel))+'</b> <span style="color:var(--muted);font-family:ui-monospace,Menlo,monospace;font-size:12px">'+esc(FILE[sel])+'</span><br>역할: '+esc(F[sel].r)+'<br>부르는 쪽: '+esc(fmt(callers))+'<br>부르는 함수: '+esc(fmt(callees));
+}
+draw();
+</script>
+</body>
+</html>

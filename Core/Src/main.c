@@ -21,8 +21,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ecu_state_manager.h"   /* ECU 상태 관리: 시작 처리, 슬립 판단                  */
-#include "scheduler.h"    /* 10ms 주기 스케줄러 (TIM2 1µs 카운터 체크, 인터럽트 없음) */
+#include "ecu_state_manager.h"   /* ECU 상태 관리: 시작 절차, 잠들기 절차                */
+#include "mode_manager.h"        /* 모드 관리: 슬립 조건 판단                            */
+#include "indicator.h"           /* 상태 표시: 시작 LED 패턴                             */
+#include "scheduler.h"           /* 10ms 주기 스케줄러 (TIM2 1µs 카운터 체크, 인터럽트 없음) */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,7 +99,8 @@ int main(void)
   MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
   __HAL_DBGMCU_FREEZE_IWDG();   /* 디버거로 멈춘 동안 IWDG도 멈춤 (DBGMCU_CR.DBG_IWDG_STOP) */
-  EcuM_Init();   /* 리셋 원인 판단, 웨이크 횟수 처리, 시작 표시 */
+  EcuM_Init();   /* 리셋 원인 판단, 웨이크 횟수 처리 */
+  Indicator_ShowStartup(EcuM_GetStartupReason(), EcuM_GetWakeCount());   /* 시작 LED 패턴 */
   Sch_Init();    /* TIM2 1µs 카운터 시작 → Sch_Run()이 10ms마다 Task_10ms() 실행 */
 
   /* USER CODE END 2 */
@@ -106,7 +109,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1) {
 		Sch_Run();             /* 10ms마다 Task_10ms() (LED 표시, 슬립 요청) */
-		EcuM_MainFunction();   /* 슬립 조건이 맞으면 잠들기 전 리셋 (돌아오지 않음) → EcuM_EarlyInit()에서 Standby */
+		BswM_MainFunction();   /* 슬립 조건 판단 → 맞으면 EcuM_GoSleep() (돌아오지 않음) → EcuM_EarlyInit()에서 Standby */
 
     /* USER CODE END WHILE */
 
