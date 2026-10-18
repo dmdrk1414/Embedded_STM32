@@ -1,8 +1,9 @@
 /*
- * rst.c : 리셋 원인 판별 모듈 구현
+ * reset_reason.c : 리셋 원인 판별 모듈 구현
+ *   - 함수 접두어 Rst_ = Reset (리셋 원인)
  */
-#include "rst.h"
-#include "lp.h"     /* Lp_IsWakeFromStandby() : SBF 확인 함수 */
+#include "reset_reason.h"
+#include "low_power.h"     /* Lp_IsWakeFromStandby() : SBF 확인 함수 */
 #include "main.h"   /* HAL 매크로 (__HAL_RCC_GET_FLAG 등)      */
 
 /* Live Expressions 확인용: 이번 시작의 리셋 원인 (enum 이름으로 보임) */
@@ -16,8 +17,9 @@ volatile Rst_ReasonType g_rstReason = RST_UNKNOWN;
  *   "전원 ON"과 "Standby 복귀"는 Power reset이고, 이때도 내부적으로
  *   NRST 핀이 LOW로 당겨진다.
  *   → 이 두 경우에도 PINRSTF(RESET 버튼 플래그)가 같이 켜질 수 있다.
- *   → 그래서 SBF → PORRSTF → PINRSTF 순서로 확인해야
- *     "진짜 RESET 버튼"만 정확히 골라낼 수 있다.
+ *   → 또 Standby 중 워치독 리셋은 SBF와 IWDGRSTF가 둘 다 1이다.
+ *   → 그래서 워치독 → SBF → PORRSTF → PINRSTF → SFTRSTF 순서로 확인해야
+ *     각 원인을 정확히 골라낼 수 있다.
  *
  * [플래그가 남아 있는 이유]
  *   RM0008 7.1.1 (p.90): 시스템 리셋은 모든 레지스터를 초기화하지만
@@ -36,16 +38,16 @@ Rst_ReasonType Rst_GetReason(void)
     uint8_t isWdg = ((__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST) != 0u) ||
                      (__HAL_RCC_GET_FLAG(RCC_FLAG_WWDGRST) != 0u)) ? 1u : 0u;
 
-    /* ① 워치독 리셋 (기존 ⑤를 맨 위로)
+    /* ① 워치독 리셋
      *    Standby 중 워치독 리셋은 SBF와 IWDGRSTF가 둘 다 1이므로
      *    SBF보다 먼저 확인해야 구분할 수 있다.
-     *    - 자는 중이었음 → 정상적인 주기 웨이크
+     *    - 자는 중이었음 → 자는 중 워치독이 깨움 (잠들기 전 리셋 적용 후엔 원래 없음)
      *    - 동작 중이었음 → 프로그램이 멈춤 (진짜 고장) */
     if (isWdg != 0u)
     {
         reason = (wasStandby != 0u) ? RST_STANDBY_WATCHDOG : RST_WATCHDOG;
     }
-    /* ② Standby 복귀 (기존 ①)
+    /* ② Standby 복귀
      *    워치독이 아닌데 Standby였다 → PA0(WKUP)로 깨어남 */
     else if (wasStandby != 0u)
     {

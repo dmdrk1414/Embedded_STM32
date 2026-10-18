@@ -1,5 +1,6 @@
 /*
- * sch.c : 주기 실행 스케줄러 구현 (일반 타이머 카운트 방식)
+ * scheduler.c : 주기 실행 스케줄러 구현 (일반 타이머 카운트 방식)
+ *   - 함수 접두어 Sch_ = Scheduler (스케줄러)
  *
  * TIM2 설정 (CubeMX)
  *   - 타이머 클럭 8MHz, PSC = 7  → 1MHz (1칸 = 1µs)
@@ -10,7 +11,7 @@
  *   - while문에서 카운터 값(TIM2->CNT)을 읽어
  *     지난번 실행 시각과의 차이가 10000µs(=10ms) 이상이면 Task_10ms() 실행.
  */
-#include "sch.h"
+#include "scheduler.h"
 #include "task.h"
 #include "main.h"
 

@@ -1,5 +1,6 @@
 /*
- * rst.h : 리셋 원인 판별 모듈 (Reset)
+ * reset_reason.h : 리셋 원인 판별 모듈 (Reset)
+ *   - 함수 접두어 Rst_ = Reset (리셋 원인)
  *
  * 역할
  *   - MCU가 "왜 처음부터 시작했는지" 판별한다.
@@ -9,17 +10,17 @@
  * 근거 문서
  *   - RM0008 7.1   Reset (p.90~91)         : 리셋 종류 설명
  *   - RM0008 7.3.10 RCC_CSR (p.119~120)    : 리셋 원인 플래그 비트
- *   - RM0008 5.3.5 Standby mode (p.76)     : SBF (Standby 복귀 플래그)
+ *   - RM0008 5.4.2 PWR_CSR (p.79)          : SBF (Standby 복귀 플래그)
  */
-#ifndef RST_H
-#define RST_H
+#ifndef RESET_REASON_H
+#define RESET_REASON_H
 
 /* 리셋 원인 종류 */
 typedef enum
 {
     RST_POWER_ON = 0,   /* 전원 ON          : RCC_CSR.PORRSTF (bit 27)              */
     RST_STANDBY_WAKE,   /* Standby 복귀      : PWR_CSR.SBF (bit 1), PA0 버튼으로 깨어남 */
-    RST_STANDBY_WATCHDOG,   /* Standby → 워치독이 깨움 (정상적인 주기 웨이크) */
+    RST_STANDBY_WATCHDOG, /* Standby 중 워치독 리셋 (잠들기 전 리셋 적용 후에는 원래 발생 안 함) */
     RST_PIN,            /* RESET 버튼        : RCC_CSR.PINRSTF (bit 26), NRST 핀     */
     RST_SOFTWARE,       /* 소프트웨어 리셋   : RCC_CSR.SFTRSTF (bit 28)              */
     RST_WATCHDOG,       /* 워치독 리셋       : RCC_CSR.IWDGRSTF(29), WWDGRSTF(30)    */
@@ -33,4 +34,4 @@ typedef enum
  */
 Rst_ReasonType Rst_GetReason(void);
 
-#endif /* RST_H */
+#endif /* RESET_REASON_H */

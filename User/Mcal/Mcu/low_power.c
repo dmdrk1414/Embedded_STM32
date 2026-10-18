@@ -1,11 +1,13 @@
 /*
- * lp.c : 저전력 모드 모듈 (Low Power)
+ * low_power.c : 저전력 모드 모듈 (Low Power)
+ *   - 함수 접두어 Lp_ = Low Power (저전력)
  *
  * 역할
- *   - Sleep, Standby 진입과 Standby 복귀 판별, 백업 레지스터 관리
- *   - RH850에서는 STBC (Standby Controller)를 다루는 부분에 해당
+ *   - Sleep, Standby 진입과 Standby 복귀 판별
+ *   - 백업 레지스터 관리: DR1 = 웨이크 횟수, DR2 = 잠들기 요청 메모
+ *   - RH850에서는 STBC (Standby Controller)를 다루는 부분과 비슷한 역할
  */
-#include "lp.h"
+#include "low_power.h"
 #include "main.h"
 
 /* BKP->DR2에 쓰는 "잠들기 요청" 표시 값
@@ -66,7 +68,7 @@ void Lp_EnterSleep(void)
 }
 
 /*
- * Lp_EnterStandby() : Standby 모드 진입 (RH850 DeepSTOP에 해당)
+ * Lp_EnterStandby() : Standby 모드 진입 (RH850 DeepSTOP과 비슷한 구조)
  *
  * - 1.8V 영역 전원을 끄고 SRAM, 레지스터 내용이 사라진다.
  *   백업 레지스터(BKP)만 유지된다. (RM0008 5.3.5, p.76)
@@ -97,8 +99,8 @@ void Lp_EnterStandby(void)
 /*
  * Lp_IsWakeFromStandby() : 방금 Standby에서 깨어났는지 확인
  *
- * - SBF (Standby Flag, PWR_CSR bit 1): Standby에 들어갔다 나오면 1이 된다.
- *   (RM0008 5.3.5, p.76)
+ * - SBF (Standby Flag, PWR_CSR bit 1): Standby에 들어가면 1이 되고,
+ *   전원 ON 리셋이나 CSBF로만 지워진다. (RM0008 5.4.2, p.79)
  * - 확인 후 지우지 않으면, 다음에 RESET 버튼을 눌러도
  *   계속 "Standby 복귀"로 잘못 판단하게 된다.
  * - 반환값: 1 = Standby 복귀, 0 = 그 외
@@ -118,7 +120,7 @@ uint8_t Lp_IsWakeFromStandby(void)
  *
  * - BKP->DR1 : 백업 데이터 레지스터 1번 (16비트 값 하나 저장)
  * - Standby에서 깨어나도 지워지지 않는다. (RM0008 6.1, p.81)
- *   → RH850 DeepSTOP의 Retention RAM과 같은 역할
+ *   → RH850 DeepSTOP의 Retention RAM과 비슷한 역할
  * - 반환값: 증가된 후의 횟수
  */
 uint16_t Lp_IncWakeCount(void)

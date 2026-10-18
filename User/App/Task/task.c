@@ -7,13 +7,15 @@
  *
  * [슬립 판단]
  *   - PA0(SW_WKUP)가 5초 동안 눌리지 않으면 슬립을 "요청"만 한다.
- *   - 실제 Standby 진입은 main이 한다. (판단과 실행을 분리)
+ *   - 실제 잠들기는 EcuM이 한다. (판단과 실행을 분리)
+ *     EcuM_MainFunction()이 요청을 보고 잠들기 전 리셋을 걸고,
+ *     리셋 직후 EcuM_EarlyInit()이 Standby에 들어간다.
  *     → AUTOSAR에서 BswM/EcuM이 "잠들 조건"을 판단하고
- *       실제 DeepSTOP 진입은 Mcu 드라이버가 하는 구조와 같다.
+ *       실제 저전력 진입은 Mcu 드라이버가 하는 구조와 비슷하다.
  */
 #include "task.h"
 #include "main.h"
-#include "wdg.h"    /* 워치독 Refresh */
+#include "watchdog.h"    /* 워치독 Refresh */
 
 /* 테스트용: Live Expressions에서 1로 바꾸면 Task가 멈춤 → 워치독 리셋 확인 */
 volatile uint8_t g_testHang = 0u;

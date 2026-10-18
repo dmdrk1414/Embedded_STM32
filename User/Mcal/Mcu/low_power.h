@@ -1,5 +1,9 @@
-#ifndef LP_H
-#define LP_H
+/*
+ * low_power.h : 저전력 모드 모듈 (Low Power)
+ *   - 함수 접두어 Lp_ = Low Power (저전력)
+ */
+#ifndef LOW_POWER_H
+#define LOW_POWER_H
 
 #include <stdint.h>
 

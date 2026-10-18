@@ -21,8 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ecum.h"   /* ECU 상태 관리: 시작 처리, 슬립 판단                  */
-#include "sch.h"    /* 10ms 주기 스케줄러 (TIM2 1µs 카운터 체크, 인터럽트 없음) */
+#include "ecu_state_manager.h"   /* ECU 상태 관리: 시작 처리, 슬립 판단                  */
+#include "scheduler.h"    /* 10ms 주기 스케줄러 (TIM2 1µs 카운터 체크, 인터럽트 없음) */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -106,7 +106,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1) {
 		Sch_Run();             /* 10ms마다 Task_10ms() (LED 표시, 슬립 요청) */
-		EcuM_MainFunction();   /* 슬립 조건이 맞으면 Standby 진입 (돌아오지 않음) */
+		EcuM_MainFunction();   /* 슬립 조건이 맞으면 잠들기 전 리셋 (돌아오지 않음) → EcuM_EarlyInit()에서 Standby */
 
     /* USER CODE END WHILE */
 

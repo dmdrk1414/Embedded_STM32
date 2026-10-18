@@ -1,21 +1,27 @@
 /*
- * ecum.c : ECU 상태 관리 모듈 구현
+ * ecu_state_manager.c : ECU 상태 관리 모듈 구현
+ *   - 함수 접두어 EcuM_ = ECU State Manager (ECU 상태 관리자)
  *
  * 상태 흐름
- *   [리셋/웨이크업] → EcuM_Init() → [RUN: 10ms Task 동작]
+ *   [리셋/웨이크업] → EcuM_EarlyInit() (메모 없음) → MX_IWDG_Init()
+ *                  → EcuM_Init() → [RUN: 10ms Task 동작, IWDG ON]
  *                                      │ 슬립 요청 (5초 무입력)
  *                                      ▼
- *                    EcuM_MainFunction() → EcuM_GoSleep() → [Standby]
- *                                                              │ PA0 상승 에지
- *                                                              ▼
- *                                                       [리셋/웨이크업] ...
+ *                    EcuM_MainFunction() → EcuM_GoSleep()
+ *                                          (BKP->DR2 메모 + 소프트웨어 리셋)
+ *                                      │ 리셋 → IWDG OFF
+ *                                      ▼
+ *                    EcuM_EarlyInit() (메모 있음) → [Standby, IWDG OFF]
+ *                                      │ PA0 상승 에지
+ *                                      ▼
+ *                                [리셋/웨이크업] ...
  */
-#include "ecum.h"
-#include "rst.h"    /* Rst_GetReason()                         */
-#include "lp.h"     /* Lp_EnterStandby(), 웨이크 횟수(BKP->DR1)  */
+#include "ecu_state_manager.h"
+#include "reset_reason.h"    /* Rst_GetReason()                         */
+#include "low_power.h"     /* Lp_EnterStandby(), 웨이크 횟수(BKP->DR1)  */
 #include "task.h"   /* Task_IsSleepRequested()                 */
 #include "main.h"   /* LED 핀, HAL                              */
-#include "wdg.h"    /* 대기 중 워치독 Refresh */
+#include "watchdog.h"    /* 대기 중 워치독 Refresh */
 
 
 /*
@@ -36,8 +42,8 @@ static void EcuM_Wait(uint32_t ms)
 
 /*
  * EcuM_Blink() : 시작 표시용 LED 깜빡임 (내부 전용)
- *   - 시작 단계에서만 쓰므로 HAL_Delay 사용 가능
- *     (아직 10ms 스케줄러가 돌기 전이라 Task 주기에 영향 없음)
+ *   - 시작 단계 전용 (아직 10ms 스케줄러가 돌기 전이라 Task 주기에 영향 없음)
+ *   - 대기는 HAL_Delay 대신 EcuM_Wait()를 써서 워치독을 Refresh한다.
  */
 static void EcuM_Blink(uint16_t count, uint32_t ms)
 {
@@ -52,7 +58,8 @@ static void EcuM_Blink(uint16_t count, uint32_t ms)
  * EcuM_GoSleep() : 잠들 준비 → 소프트웨어 리셋 (내부 전용, 돌아오지 않음)
  *
  *   [왜 바로 Standby에 들어가지 않고 리셋하는가]
- *   - IWDG는 한번 켜지면 끌 수 없고, LSI 클럭도 끊을 수 없다. (RM0008 p.98)
+ *   - IWDG는 한번 켜지면 끌 수 없고 (RM0008 5.3.4, p.75),
+ *     LSI 클럭도 끊을 수 없다. (RM0008 7.2.9, p.98)
  *   - 그대로 Standby에 들어가면 IWDG가 약 0.1초 만에 깨운다.
  *   - 리셋하면 IWDG도 꺼지므로, 리셋 직후 IWDG가 켜지기 전에 잠든다.
  *   - 회사 제품의 예전 방식 "슬립 전 리셋"과 같은 구조.
@@ -100,7 +107,8 @@ void EcuM_Init(void)
             break;
 
         case RST_STANDBY_WATCHDOG:
-            /* 자는 중 워치독이 깨움: 웨이크 횟수는 올리지 않고, LED 표시도 없음 */
+            /* 자는 중 워치독이 깨움: 잠들기 전 리셋 적용 후에는 IWDG가 꺼진 채 잠들어서
+             * 원래 발생하지 않는다. 혹시 발생하면 웨이크 횟수는 올리지 않고 표시 없이 진행 */
             break;
 
         case RST_WATCHDOG:
@@ -122,6 +130,7 @@ void EcuM_Init(void)
 /*
  * EcuM_MainFunction() : 슬립 조건 판단
  *   - 지금 조건: Task가 슬립을 요청했는가 (PA0 5초 무입력)
+ *   - 조건이 맞으면 EcuM_GoSleep() → 잠들기 전 리셋 (돌아오지 않음)
  *   - 조건이 늘어나면 여기에 AND로 추가한다. (AUTOSAR의 BswM 규칙 역할)
  */
 void EcuM_MainFunction(void)
