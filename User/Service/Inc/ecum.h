@@ -18,4 +18,7 @@ void EcuM_Init(void);
 /* while (1)에서 계속 호출: 슬립 조건이 맞으면 잠든다 (돌아오지 않음) */
 void EcuM_MainFunction(void);
 
+/* 리셋 직후, 워치독 시작 전에 호출: 잠들기 요청이 있으면 바로 Standby */
+void EcuM_EarlyInit(void);
+
 #endif /* ECUM_H */

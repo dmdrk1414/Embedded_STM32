@@ -49,14 +49,35 @@ static void EcuM_Blink(uint16_t count, uint32_t ms)
 }
 
 /*
- * EcuM_GoSleep() : 잠들 준비 → Standby 진입 (내부 전용, 돌아오지 않음)
- *   - 잠들기 전 준비 작업은 모두 여기에 모은다.
- *   - 나중에 "데이터 저장, 주변장치 끄기" 등이 추가될 자리.
+ * EcuM_GoSleep() : 잠들 준비 → 소프트웨어 리셋 (내부 전용, 돌아오지 않음)
+ *
+ *   [왜 바로 Standby에 들어가지 않고 리셋하는가]
+ *   - IWDG는 한번 켜지면 끌 수 없고, LSI 클럭도 끊을 수 없다. (RM0008 p.98)
+ *   - 그대로 Standby에 들어가면 IWDG가 약 0.1초 만에 깨운다.
+ *   - 리셋하면 IWDG도 꺼지므로, 리셋 직후 IWDG가 켜지기 전에 잠든다.
+ *   - 회사 제품의 예전 방식 "슬립 전 리셋"과 같은 구조.
  */
 static void EcuM_GoSleep(void)
 {
-    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);   /* LED 끄기 (Active Low) */
-    Lp_EnterStandby();                                         /* 여기서 잠듦 */
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);   /* LED 끄기 */
+    Lp_SetSleepRequest();                                      /* "다음 시작 때 바로 잠들어라" */
+    NVIC_SystemReset();                                        /* 소프트웨어 리셋 (IWDG 꺼짐) */
+}
+
+/*
+ * EcuM_EarlyInit() : 리셋 직후 가장 먼저 실행 (MX_IWDG_Init 보다 앞)
+ *   - 잠들기 요청 표시가 있으면, IWDG가 꺼진 상태 그대로 Standby 진입.
+ *   - 표시가 없으면 아무것도 하지 않고 돌아가서 평소처럼 초기화.
+ */
+void EcuM_EarlyInit(void)
+{
+    if (Lp_TakeSleepRequest() != 0u)
+    {
+        /* 이번 리셋은 "잠들기 위한 리셋"이므로 리셋 플래그(SFTRSTF)를 정리해 둔다.
+         * 그래야 PA0로 깨어났을 때 원인 판단이 깔끔하다. */
+        __HAL_RCC_CLEAR_RESET_FLAGS();
+        Lp_EnterStandby();                /* 여기서 잠듦 (IWDG 없이) */
+    }
 }
 
 /*

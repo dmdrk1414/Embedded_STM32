@@ -8,6 +8,41 @@
 #include "lp.h"
 #include "main.h"
 
+/* BKP->DR2에 쓰는 "잠들기 요청" 표시 값
+ * 0이나 우연히 생기는 값과 구분되도록 특별한 값을 사용한다. */
+#define LP_SLEEP_REQ_MAGIC   (0x5A5Au)
+
+/*
+ * Lp_SetSleepRequest() : 리셋 후 바로 Standby로 가라는 표시를 남긴다.
+ *   - BKP->DR2는 시스템 리셋으로 지워지지 않는다. (RM0008 7.1.1, p.90)
+ *   - 리셋을 넘어서 "다음 시작 때 할 일"을 전달하는 용도.
+ */
+void Lp_SetSleepRequest(void)
+{
+    __HAL_RCC_BKP_CLK_ENABLE();          /* 백업 레지스터 클럭 켜기 */
+    HAL_PWR_EnableBkUpAccess();          /* 쓰기 보호 풀기 (PWR_CR.DBP = 1) */
+    BKP->DR2 = LP_SLEEP_REQ_MAGIC;
+}
+
+/*
+ * Lp_TakeSleepRequest() : 표시가 있으면 지우고 1, 없으면 0.
+ *   - 확인하면서 지우므로 한 번만 동작한다. (계속 잠드는 일 방지)
+ */
+uint8_t Lp_TakeSleepRequest(void)
+{
+    uint8_t req = 0u;
+
+    __HAL_RCC_BKP_CLK_ENABLE();
+    HAL_PWR_EnableBkUpAccess();
+
+    if (BKP->DR2 == LP_SLEEP_REQ_MAGIC)
+    {
+        BKP->DR2 = 0u;                   /* 확인했으면 지우기 */
+        req = 1u;
+    }
+    return req;
+}
+
 /*
  * Lp_EnterSleep() : Sleep 모드 진입
  *

@@ -80,6 +80,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  EcuM_EarlyInit();   /* 잠들기 요청이면 IWDG 시작 전에 바로 Standby (돌아오지 않음) */
 
   /* USER CODE END Init */
 
